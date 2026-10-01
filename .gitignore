@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+env/
+
+# Node
+node_modules/
+dist/
+build/
+
+# Logs
+*.log
+backend.log
+frontend.log
+backend/backend.log
+frontend/frontend.log
+
+# Bases de datos locales
+*.db
+*.sqlite
+*.sqlite3
+backend/restaurant_pos.db
+
+# Uploads y archivos generados
+backend/uploads/
+
+# Instaladores y binarios pesados (>100MB GitHub limit)
+*.zip
+*.exe
+*.msi
+*.dmg
+*.iso
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Variables de entorno
+.env
+.env.local
+.env.production

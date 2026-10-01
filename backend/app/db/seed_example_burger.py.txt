@@ -1,0 +1,339 @@
+"""
+Seed script: populates roles, users, categories, products, ingredients,
+recipes, combos, customers, expense categories, and sample data.
+Run with: python -m app.db.seed
+"""
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from app.db.session import SessionLocal
+from app.db.base import Base
+from app.db.session import engine
+from app.core.security import get_password_hash
+from app.models.user import User, Role
+from app.models.product import Category, Product, ProductVariant, ProductOptionGroup, ProductOption, ProductType
+from app.models.inventory import UnitOfMeasure, Supplier, InventoryItem, InventoryMovement, MovementType
+from app.models.recipe import Recipe, RecipeItem, ComboComponent
+from app.models.customer import Customer
+from app.models.expense import ExpenseCategory, Expense
+from app.models.purchase import Purchase, PurchaseItem
+from datetime import datetime
+from decimal import Decimal
+
+
+def seed():
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+
+    try:
+        # ── Roles ──────────────────────────────────────────────────────────────
+        roles_data = [
+            ("Administrador", "Acceso total al sistema"),
+            ("Cajero", "Ventas y caja"),
+            ("Cocina", "Pantalla de cocina"),
+            ("Mesero", "Toma de pedidos en mesa"),
+        ]
+        roles = {}
+        for name, desc in roles_data:
+            r = db.query(Role).filter(Role.name == name).first()
+            if not r:
+                r = Role(name=name, description=desc)
+                db.add(r)
+                db.flush()
+            roles[name] = r
+
+        # ── Admin user ─────────────────────────────────────────────────────────
+        if not db.query(User).filter(User.email == "admin@pecadoburger.com").first():
+            db.add(User(
+                name="Administrador",
+                email="admin@pecadoburger.com",
+                hashed_password=get_password_hash("CambiaEstaClave123"),
+                role_id=roles["Administrador"].id,
+            ))
+        if not db.query(User).filter(User.email == "cajero@pecadoburger.com").first():
+            db.add(User(
+                name="Cajero Principal",
+                email="cajero@pecadoburger.com",
+                hashed_password=get_password_hash("CambiaEstaClave123"),
+                role_id=roles["Cajero"].id,
+            ))
+        if not db.query(User).filter(User.email == "cocina@pecadoburger.com").first():
+            db.add(User(
+                name="Cocina",
+                email="cocina@pecadoburger.com",
+                hashed_password=get_password_hash("CambiaEstaClave123"),
+                role_id=roles["Cocina"].id,
+            ))
+        if not db.query(User).filter(User.email == "mesero@pecadoburger.com").first():
+            db.add(User(
+                name="Mesero",
+                email="mesero@pecadoburger.com",
+                hashed_password=get_password_hash("CambiaEstaClave123"),
+                role_id=roles["Mesero"].id,
+            ))
+        db.flush()
+
+        # ── Units of Measure ────────────────────────────────────────────────────
+        units = {}
+        for name, abbr in [("Gramos", "g"), ("Unidades", "un"), ("Mililitros", "ml"), ("Litros", "L"), ("Porciones", "por")]:
+            u = db.query(UnitOfMeasure).filter(UnitOfMeasure.name == name).first()
+            if not u:
+                u = UnitOfMeasure(name=name, abbreviation=abbr)
+                db.add(u)
+                db.flush()
+            units[name] = u
+
+        # ── Supplier ────────────────────────────────────────────────────────────
+        supplier = db.query(Supplier).filter(Supplier.name == "Proveedor Principal").first()
+        if not supplier:
+            supplier = Supplier(name="Proveedor Principal", contact_name="Juan Pérez", phone="3001234567")
+            db.add(supplier)
+            db.flush()
+
+        # ── Inventory Items ─────────────────────────────────────────────────────
+        inv_data = [
+            # (name, unit_key, stock, min_stock, cost)
+            ("Pan premium", "Unidades", 100, 20, 800),
+            ("Carne pecado 150g", "Unidades", 80, 15, 2500),
+            ("Pollo pecado 150g", "Unidades", 60, 15, 2200),
+            ("Carne desmechada 150g", "Unidades", 40, 10, 2800),
+            ("Chorizo", "Unidades", 60, 10, 1200),
+            ("Tocineta", "Gramos", 2000, 300, 50),
+            ("Jamón cocido", "Gramos", 3000, 400, 30),
+            ("Queso mozzarella", "Gramos", 4000, 500, 35),
+            ("Jalapeños", "Gramos", 500, 100, 20),
+            ("Cebolla", "Gramos", 2000, 300, 5),
+            ("Cebolla caramelizada", "Gramos", 500, 100, 15),
+            ("Cebolla grille", "Gramos", 500, 100, 10),
+            ("Cebolla sazonada", "Gramos", 500, 100, 10),
+            ("Tomate", "Gramos", 2000, 300, 5),
+            ("Lechuga", "Gramos", 2000, 300, 4),
+            ("Guacamole", "Gramos", 800, 150, 25),
+            ("Salsa de casa", "Mililitros", 2000, 300, 15),
+            ("Piña en trozos", "Gramos", 500, 100, 10),
+            ("Pepinillos", "Gramos", 500, 100, 10),
+            ("Pimentón", "Gramos", 500, 100, 8),
+            ("Ensalada de col", "Gramos", 500, 100, 12),
+            ("Papas porción", "Porciones", 80, 15, 1800),
+            ("Gaseosa 350ml", "Unidades", 60, 10, 1200),
+            ("Agua 500ml", "Unidades", 48, 10, 800),
+        ]
+        items = {}
+        for name, unit_key, stock, min_stock, cost in inv_data:
+            item = db.query(InventoryItem).filter(InventoryItem.name == name).first()
+            if not item:
+                item = InventoryItem(
+                    name=name,
+                    unit_id=units[unit_key].id,
+                    current_stock=Decimal(str(stock)),
+                    minimum_stock=Decimal(str(min_stock)),
+                    current_cost=Decimal(str(cost)),
+                    preferred_supplier_id=supplier.id,
+                )
+                db.add(item)
+                db.flush()
+                db.add(InventoryMovement(
+                    item_id=item.id,
+                    movement_type=MovementType.initial,
+                    quantity=Decimal(str(stock)),
+                    quantity_before=Decimal("0"),
+                    quantity_after=Decimal(str(stock)),
+                    unit_cost=Decimal(str(cost)),
+                    notes="Stock inicial",
+                ))
+            items[name] = item
+
+        db.flush()
+
+        # ── Combo Components (configurable) ─────────────────────────────────────
+        if not db.query(ComboComponent).first():
+            db.add(ComboComponent(name="Papas combo", inventory_item_id=items["Papas porción"].id, quantity=Decimal("1")))
+            db.add(ComboComponent(name="Bebida combo", inventory_item_id=items["Gaseosa 350ml"].id, quantity=Decimal("1")))
+        db.flush()
+
+        # ── Category ────────────────────────────────────────────────────────────
+        cat = db.query(Category).filter(Category.name == "Hamburguesas Artesanales").first()
+        if not cat:
+            cat = Category(name="Hamburguesas Artesanales", description="Los 7 pecados capitales y más", sort_order=1)
+            db.add(cat)
+            db.flush()
+
+        # ── Products & Recipes ──────────────────────────────────────────────────
+        # Format: (name, price_sola, price_combo, recipe_items_for_sola)
+        # recipe_items: list of (item_name, quantity)
+        products_data = [
+            ("SOBERBIA", 14000, 19000, [
+                ("Pan premium", 1), ("Carne pecado 150g", 1), ("Chorizo", 1),
+                ("Tocineta", 30), ("Jamón cocido", 40), ("Queso mozzarella", 50),
+                ("Jalapeños", 20), ("Cebolla", 30), ("Tomate", 40),
+                ("Lechuga", 30), ("Guacamole", 50), ("Salsa de casa", 30),
+            ]),
+            ("AVARICIA", 13000, 18000, [
+                ("Pan premium", 1), ("Carne pecado 150g", 1),
+                ("Tocineta", 30), ("Jamón cocido", 40), ("Queso mozzarella", 50),
+                ("Piña en trozos", 50), ("Cebolla grille", 30), ("Tomate", 40),
+                ("Lechuga", 30), ("Salsa de casa", 30),
+            ]),
+            ("IRA", 13000, 18000, [
+                ("Pan premium", 1), ("Carne pecado 150g", 1),
+                ("Tocineta", 30), ("Jamón cocido", 40), ("Queso mozzarella", 50),
+                ("Tomate", 40), ("Lechuga", 30), ("Salsa de casa", 30),
+            ]),
+            ("GULA", 12000, 17000, [
+                ("Pan premium", 1), ("Carne pecado 150g", 1),
+                ("Jamón cocido", 40), ("Queso mozzarella", 50),
+                ("Piña en trozos", 50), ("Cebolla caramelizada", 30), ("Tomate", 40),
+                ("Lechuga", 30), ("Salsa de casa", 30),
+            ]),
+            ("ENVIDIA", 12000, 17000, [
+                ("Pan premium", 1), ("Carne pecado 150g", 1),
+                ("Jamón cocido", 40), ("Queso mozzarella", 50),
+                ("Pepinillos", 30), ("Tomate", 40),
+                ("Lechuga", 30), ("Salsa de casa", 30),
+            ]),
+            ("PEREZA", 13000, 18000, [
+                ("Pan premium", 1), ("Pollo pecado 150g", 1),
+                ("Tocineta", 30), ("Jamón cocido", 40), ("Queso mozzarella", 50),
+                ("Pimentón", 40), ("Cebolla", 30), ("Tomate", 40),
+                ("Lechuga", 30), ("Salsa de casa", 30),
+            ]),
+            ("LUJURIA", 12000, 17000, [
+                ("Pan premium", 1), ("Pollo pecado 150g", 1),
+                ("Jamón cocido", 40), ("Queso mozzarella", 50),
+                ("Ensalada de col", 50), ("Tomate", 40),
+                ("Lechuga", 30), ("Salsa de casa", 30),
+            ]),
+        ]
+
+        for prod_name, price_sola, price_combo, recipe_items in products_data:
+            if db.query(Product).filter(Product.name == prod_name).first():
+                continue
+            product = Product(
+                name=prod_name,
+                category_id=cat.id,
+                product_type=ProductType.burger,
+                image_url="/images/hamburguesa-1.jpg",
+                has_combo=True,
+            )
+            db.add(product)
+            db.flush()
+
+            # Variant: Sola
+            v_sola = ProductVariant(product_id=product.id, name="Sola", price=Decimal(str(price_sola)), is_combo=False, sort_order=0)
+            db.add(v_sola)
+            db.flush()
+            recipe_sola = Recipe(variant_id=v_sola.id)
+            db.add(recipe_sola)
+            db.flush()
+            for item_name, qty in recipe_items:
+                db.add(RecipeItem(recipe_id=recipe_sola.id, inventory_item_id=items[item_name].id, quantity=Decimal(str(qty))))
+
+            # Variant: Combo (same ingredients + combo components via service)
+            v_combo = ProductVariant(product_id=product.id, name="Combo", price=Decimal(str(price_combo)), is_combo=True, sort_order=1)
+            db.add(v_combo)
+            db.flush()
+            recipe_combo = Recipe(variant_id=v_combo.id)
+            db.add(recipe_combo)
+            db.flush()
+            for item_name, qty in recipe_items:
+                db.add(RecipeItem(recipe_id=recipe_combo.id, inventory_item_id=items[item_name].id, quantity=Decimal(str(qty))))
+
+        # ── Special products without combo ──────────────────────────────────────
+        special_products = [
+            ("DIOSA DE LA QUININI", 10000, None, [
+                ("Pan premium", 1), ("Carne pecado 150g", 1),
+                ("Queso mozzarella", 50), ("Tomate", 40),
+                ("Lechuga", 30), ("Salsa de casa", 30),
+            ]),
+            ("HADES", 19000, None, [
+                ("Pan premium", 1), ("Carne pecado 150g", 1),
+                ("Tocineta", 30), ("Jamón cocido", 80), ("Queso mozzarella", 100),
+                ("Tomate", 40), ("Lechuga", 30), ("Salsa de casa", 30),
+            ]),
+            ("PENITENCIA", 22000, None, [
+                ("Pan premium", 1), ("Carne pecado 150g", 1), ("Pollo pecado 150g", 1),
+                ("Carne desmechada 150g", 1),
+                ("Jamón cocido", 80), ("Queso mozzarella", 100),
+                ("Cebolla sazonada", 30), ("Tomate", 40),
+                ("Lechuga", 30), ("Salsa de casa", 30),
+            ]),
+        ]
+
+        for prod_name, price, _, recipe_items in special_products:
+            if db.query(Product).filter(Product.name == prod_name).first():
+                continue
+            product = Product(
+                name=prod_name,
+                category_id=cat.id,
+                product_type=ProductType.burger,
+                image_url="/images/hamburguesa-1.jpg",
+                has_combo=False,
+            )
+            db.add(product)
+            db.flush()
+
+            v = ProductVariant(product_id=product.id, name="Única", price=Decimal(str(price)), is_combo=False, sort_order=0)
+            db.add(v)
+            db.flush()
+            recipe = Recipe(variant_id=v.id)
+            db.add(recipe)
+            db.flush()
+            for item_name, qty in recipe_items:
+                db.add(RecipeItem(recipe_id=recipe.id, inventory_item_id=items[item_name].id, quantity=Decimal(str(qty))))
+
+        # ── HADES option group: choose protein ──────────────────────────────────
+        hades = db.query(Product).filter(Product.name == "HADES").first()
+        if hades and not db.query(ProductOptionGroup).filter(ProductOptionGroup.product_id == hades.id).first():
+            group = ProductOptionGroup(
+                product_id=hades.id,
+                name="Proteína",
+                description="Elige tu proteína",
+                is_required=True,
+                min_selections=1,
+                max_selections=1,
+            )
+            db.add(group)
+            db.flush()
+            db.add(ProductOption(group_id=group.id, name="Carne + Pollo", additional_price=Decimal("0")))
+            db.add(ProductOption(group_id=group.id, name="Doble Carne", additional_price=Decimal("0")))
+
+        db.flush()
+
+        # ── Customers ────────────────────────────────────────────────────────────
+        customers_data = [
+            ("Carlos Rodríguez", "3001234567", "Cra 10 #15-30"),
+            ("María González", "3009876543", "Cll 50 #20-10"),
+            ("Luis Martínez", "3155556789", None),
+        ]
+        for name, phone, address in customers_data:
+            if not db.query(Customer).filter(Customer.phone == phone).first():
+                db.add(Customer(name=name, phone=phone, address=address))
+
+        # ── Expense Categories ────────────────────────────────────────────────────
+        exp_cats = [
+            "Arriendo", "Servicios públicos", "Nómina", "Transporte",
+            "Empaques", "Publicidad", "Mantenimiento", "Plataformas digitales",
+            "Gas", "Internet", "Otros",
+        ]
+        for cat_name in exp_cats:
+            if not db.query(ExpenseCategory).filter(ExpenseCategory.name == cat_name).first():
+                db.add(ExpenseCategory(name=cat_name))
+
+        db.commit()
+        print("Seed completado exitosamente")
+        print("   Admin: admin@pecadoburger.com / CambiaEstaClave123")
+        print("   Cajero: cajero@pecadoburger.com / CambiaEstaClave123")
+        print("   Cocina: cocina@pecadoburger.com / CambiaEstaClave123")
+        print("   Mesero: mesero@pecadoburger.com / CambiaEstaClave123")
+
+    except Exception as e:
+        db.rollback()
+        print(f"ERROR en seed: {e}")
+        raise
+    finally:
+        db.close()
+
+
+if __name__ == "__main__":
+    seed()

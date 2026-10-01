@@ -1,0 +1,22 @@
+{
+  "name": "Rancho La Kamelia",
+  "short_name": "Kamelia",
+  "description": "Sistema POS Rancho La Kamelia — funciona en WiFi local sin internet",
+  "start_url": "/admin",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0a0a",
+  "theme_color": "#d4af37",
+  "lang": "es-CO",
+  "categories": ["business", "food"],
+  "icons": [
+    { "src": "/logos/logo.jpg", "sizes": "512x512", "type": "image/jpeg", "purpose": "any" },
+    { "src": "/logos/logo.jpg", "sizes": "192x192", "type": "image/jpeg", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Mesas",      "url": "/admin/mesas",      "description": "Tomar pedido en mesa" },
+    { "name": "Cocina",     "url": "/admin/cocina",     "description": "Pantallas de cocina" },
+    { "name": "Despacho",   "url": "/admin/despacho/principal", "description": "Cola de despacho principal" }
+  ]
+}

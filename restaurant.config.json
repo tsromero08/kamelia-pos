@@ -1,0 +1,43 @@
+{
+  "_comentario": "Archivo MAESTRO de configuración del restaurante. Edita SOLO este archivo y ejecuta 'python personalizar.py' desde la raíz. Eso regenera todos los .env, container names, branding, etc.",
+  "business": {
+    "name": "Rancho La Kamelia",
+    "short_name": "Kamelia",
+    "tagline": "¡Sabor, parrilla y un buen trago... así se vive el Rancho!",
+    "type": "rancho parrilla",
+    "nit": "900000000-0",
+    "phone": "3125833249",
+    "address": "Rancho La Kamelia",
+    "city": "Cundinamarca",
+    "country": "Colombia",
+    "currency": "COP",
+    "currency_symbol": "$"
+  },
+  "branding": {
+    "primary_color": "#0a0a0a",
+    "accent_color": "#d4af37",
+    "logo_filename": "logo.jpg",
+    "favicon_filename": "favicon.png",
+    "watermark_text": "RANCHO LA KAMELIA",
+    "kitchen_banner_text": "COCINA — RANCHO LA KAMELIA"
+  },
+  "system": {
+    "container_prefix": "kamelia",
+    "db_name": "kamelia_pos",
+    "db_user": "kamelia_user",
+    "db_password": "CambiaEstaClave123",
+    "email_domain": "rancholakamelia.com",
+    "special_access_code": "KAMELIA2026",
+    "first_admin_password": "Kamelia2026!"
+  },
+  "license": {
+    "key": "TITANOVA-KAMELIA",
+    "client": "Rancho La Kamelia",
+    "expires": "",
+    "contact": "Software Titanova - 3013896861"
+  },
+  "deploy": {
+    "domain": "pos.rancholakamelia.com",
+    "backup_passphrase": "KAMELIA-BACKUP-2026"
+  }
+}

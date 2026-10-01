@@ -1,0 +1,106 @@
+version: "3.9"
+
+# ════════════════════════════════════════════════════════════════
+#  RANCHO LA KAMELIA — Despliegue LAN (WiFi local, sin internet)
+#  Un solo servidor mini-PC en el rancho.
+#  - Frontend Nginx con HTTPS local (cert mkcert) en puertos 80/443
+#  - Backend FastAPI tras nginx (no expuesto al exterior)
+#  - PostgreSQL no expuesto
+#  - Backups automáticos cada hora a /backups (USB recomendado)
+#  - Sin servicios externos (Let's Encrypt, etc.)
+# ════════════════════════════════════════════════════════════════
+
+services:
+
+  db:
+    image: postgres:16-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-kamelia}_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kamelia_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CambiaEstaClave123}
+      POSTGRES_DB: ${POSTGRES_DB:-kamelia_pos}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # No expone puertos al host: solo accesible desde la red interna del compose
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kamelia_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    # Tune para 200 pedidos/día y 30+ conexiones simultáneas
+    command:
+      - postgres
+      - -c
+      - max_connections=100
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - effective_cache_size=512MB
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: ${COMPOSE_PROJECT_NAME:-kamelia}_backend
+    restart: always
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kamelia_user}:${POSTGRES_PASSWORD:-CambiaEstaClave123}@db:5432/${POSTGRES_DB:-kamelia_pos}
+    expose:
+      - "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ../restaurant.config.json:/restaurant.config.json:ro
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: ${COMPOSE_PROJECT_NAME:-kamelia}_frontend
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx.lan.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/certs:/etc/nginx/certs:ro
+    depends_on:
+      - backend
+
+  # Backups automáticos cada hora del disco a /backups
+  backup:
+    image: postgres:16-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-kamelia}_backup
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kamelia_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CambiaEstaClave123}
+      POSTGRES_DB: ${POSTGRES_DB:-kamelia_pos}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-CambiaEstaClave123}
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Backup loop iniciado — un backup por hora a /backups";
+        while true; do
+          TS=$$(date +%Y%m%d_%H%M%S);
+          FILE=/backups/kamelia_$$TS.sql.gz;
+          pg_dump -h db -U $$POSTGRES_USER $$POSTGRES_DB | gzip > $$FILE;
+          echo "[$$(date)] backup creado: $$FILE";
+          # Rotación: conservar últimos 168 (7 días * 24h)
+          ls -1t /backups/kamelia_*.sql.gz 2>/dev/null | tail -n +169 | xargs -r rm -f;
+          sleep 3600;
+        done
+
+volumes:
+  postgres_data:
